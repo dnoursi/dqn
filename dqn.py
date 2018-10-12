@@ -33,11 +33,14 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
+#import gym.envs.atari as atari
 sns.set()
 
 from util import wrap_dqn
 
 env = wrap_dqn(gym.make("{}NoFrameskip-v4".format(args.game)))
+#env = atari.AtariEnv(env)
+#env = wrap_dqn(atari.AtariEnv("pong", frameskip=1))
 
 def q_network(net, name, reuse=False):
     with tf.variable_scope(name, reuse=reuse) as scope:
@@ -45,7 +48,7 @@ def q_network(net, name, reuse=False):
         for n_maps, kernel_size, strides, padding, activation in zip(
                 [32, 64, 64], [(8,8), (4,4), (3,3)], [4, 2, 1],
                 ["SAME"] * 3 , [tf.nn.relu] * 3):
-            net = tf.layers.conv2d(net, filters=n_maps, kernel_size=kernel_size, strides=strides, 
+            net = tf.layers.conv2d(net, filters=n_maps, kernel_size=kernel_size, strides=strides,
                 padding=padding, activation=activation, kernel_initializer=initializer)
         net = tf.layers.dense(tf.contrib.layers.flatten(net), 256, activation=tf.nn.relu, kernel_initializer=initializer)
         net = tf.layers.dense(net, env.action_space.n, kernel_initializer=initializer)
@@ -113,6 +116,8 @@ def epsilon_greedy(q_values, step):
 
 done = True # env needs to be reset
 
+init_state = init_clone_point = init_point_reward_delta = None
+
 # We will keep track of the max Q-Value over time and compute the mean per game
 loss_val = np.infty
 game_length = 0
@@ -129,7 +134,7 @@ with tf.Session() as sess:
         init.run()
         copy_online_to_target.run()
     for step in range(args.number_steps):
-        training_iter = global_step.eval() 
+        training_iter = global_step.eval()
         if done: # game over, start again
             if args.verbosity > 0:
                 print("Step {}/{} ({:.1f})% Training iters {}   "
@@ -137,7 +142,16 @@ with tf.Session() as sess:
                 step, args.number_steps, step * 100 / args.number_steps,
                 training_iter, loss_val, mean_max_q, returnn))
                 sys.stdout.flush()
-            state = env.reset()
+
+            if np.random.random() < 0.1:
+                state = env.reset()
+            else:
+                if init_clone_point is None:
+                    state = env.reset()
+                else:
+                    env.env.unwrapped.restore_full_state(init_clone_point)
+                    state = init_state
+
         if args.render:
             env.render()
 
@@ -145,9 +159,22 @@ with tf.Session() as sess:
         q_values = online_q_values.eval(feed_dict={X_state: [state]})
         action = epsilon_greedy(q_values, step)
 
+        # checkpoint old state
+        old_cloned_state = env.env.unwrapped.clone_full_state()
+        old_state = state
+
         # Online DQN plays
         next_state, reward, done, info = env.step(action)
         returnn += reward
+
+        # delta set to none after each env reset.
+        if init_point_reward_delta is None:
+            init_point_reward_delta = reward
+        # if the last step drew a great reward, then benchmark here.
+        if reward > init_point_reward_delta:
+            init_clone_point = old_cloned_state
+            init_state = old_state
+            init_point_reward_delta = reward
 
         # Let's memorize what happened
         replay_memory.append((state, action, reward, next_state, done))
@@ -169,13 +196,13 @@ with tf.Session() as sess:
 
         if step < training_start or step % args.learn_freq != 0:
             continue # only train after warmup period and at regular intervals
-        
+
         # Sample memories and train the online DQN
         X_state_val, X_action_val, X_rewards_val, X_next_state_val, X_done_val = sample_memories(batch_size)
-        
+
         _, loss_val = sess.run([training_op, loss],
-        {X_state: X_state_val, 
-        X_action: X_action_val, 
+        {X_state: X_state_val,
+        X_action: X_action_val,
         X_rewards: X_rewards_val,
         X_done: X_done_val,
         X_next_state: X_next_state_val})
@@ -186,6 +213,7 @@ with tf.Session() as sess:
 
         # And save regularly
         if step % args.save_steps == 0:
+            init_state = init_clone_point = init_point_reward_delta = None
+
             saver.save(sess, path)
             np.save(os.path.join(args.jobid, "{}.npy".format(args.jobid)), np.array((steps, returns)))
-
