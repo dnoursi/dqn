@@ -13,6 +13,7 @@ parser.add_argument("-n", "--number-steps", type=int, default=1000000, help="tot
 parser.add_argument("-e", "--explore-steps", type=int, default=100000, help="total number of explorartion steps")
 parser.add_argument("-c", "--copy-steps", type=int, default=4096, help="number of training steps between copies of online DQN to target DQN")
 parser.add_argument("-l", "--learn-freq", type=int, default=4, help="number of game steps between each training step")
+parser.add_argument("-b", "--benchmark", type=bool, default=True, help="use heuristic benchmarking")
 
 # Irrelevant hparams
 parser.add_argument("-s", "--save-steps", type=int, default=10000, help="number of training steps between saving checkpoints")
@@ -116,7 +117,8 @@ def epsilon_greedy(q_values, step):
 
 done = True # env needs to be reset
 
-init_state = init_clone_point = init_point_reward_delta = None
+if args.benchmark:
+    init_state = init_clone_point = init_point_reward_delta = None
 
 # We will keep track of the max Q-Value over time and compute the mean per game
 loss_val = np.infty
@@ -143,7 +145,7 @@ with tf.Session() as sess:
                 training_iter, loss_val, mean_max_q, returnn))
                 sys.stdout.flush()
 
-            if np.random.random() < 0.1:
+            if (not args.benchmark) or np.random.random() < 0.1:
                 state = env.reset()
             else:
                 if init_clone_point is None:
@@ -159,22 +161,24 @@ with tf.Session() as sess:
         q_values = online_q_values.eval(feed_dict={X_state: [state]})
         action = epsilon_greedy(q_values, step)
 
-        # checkpoint old state
-        old_cloned_state = env.env.unwrapped.clone_full_state()
-        old_state = state
+        if args.benchmark:
+            # checkpoint old state
+            old_cloned_state = env.env.unwrapped.clone_full_state()
+            old_state = state
 
         # Online DQN plays
         next_state, reward, done, info = env.step(action)
         returnn += reward
 
-        # delta set to none after each env reset.
-        if init_point_reward_delta is None:
-            init_point_reward_delta = reward
-        # if the last step drew a great reward, then benchmark here.
-        if reward > init_point_reward_delta:
-            init_clone_point = old_cloned_state
-            init_state = old_state
-            init_point_reward_delta = reward
+        if args.benchmark:
+            # delta set to none after each env reset.
+            if init_point_reward_delta is None:
+                init_point_reward_delta = reward
+            # if the last step drew a great reward, then benchmark here.
+            if reward > init_point_reward_delta:
+                init_clone_point = old_cloned_state
+                init_state = old_state
+                init_point_reward_delta = reward
 
         # Let's memorize what happened
         replay_memory.append((state, action, reward, next_state, done))
@@ -213,7 +217,8 @@ with tf.Session() as sess:
 
         # And save regularly
         if step % args.save_steps == 0:
-            init_state = init_clone_point = init_point_reward_delta = None
+            if args.benchmark:
+                init_state = init_clone_point = init_point_reward_delta = None
 
             saver.save(sess, path)
             np.save(os.path.join(args.jobid, "{}.npy".format(args.jobid)), np.array((steps, returns)))
