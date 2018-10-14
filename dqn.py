@@ -13,7 +13,8 @@ parser.add_argument("-n", "--number-steps", type=int, default=1000000, help="tot
 parser.add_argument("-e", "--explore-steps", type=int, default=100000, help="total number of explorartion steps")
 parser.add_argument("-c", "--copy-steps", type=int, default=4096, help="number of training steps between copies of online DQN to target DQN")
 parser.add_argument("-l", "--learn-freq", type=int, default=4, help="number of game steps between each training step")
-parser.add_argument("-b", "--benchmark", type=bool, default=True, help="use heuristic benchmarking")
+parser.add_argument("-b", "--benchmark", type=int, default=1, help="use heuristic benchmarking")
+# for 1; record max reward delta. for 2; record max total reward accumulated.
 
 # Irrelevant hparams
 parser.add_argument("-s", "--save-steps", type=int, default=10000, help="number of training steps between saving checkpoints")
@@ -174,11 +175,19 @@ with tf.Session() as sess:
             # delta set to none after each env reset.
             if init_point_reward_delta is None:
                 init_point_reward_delta = reward
-            # if the last step drew a great reward, then benchmark here.
-            if reward > init_point_reward_delta:
-                init_clone_point = old_cloned_state
-                init_state = old_state
-                init_point_reward_delta = reward
+            else:
+                if args.benchmark == 1:
+                    # if the last step drew a great reward, then benchmark here.
+                    if reward > init_point_reward_delta:
+                        init_clone_point = old_cloned_state
+                        init_state = old_state
+                        init_point_reward_delta = reward
+                if args.benchmark == 2:
+                    # if the last step drew a great total returnn, then benchmark here.
+                    if returnn > init_point_reward_delta:
+                        init_clone_point = old_cloned_state
+                        init_state = old_state
+                        init_point_reward_delta = returnn
 
         # Let's memorize what happened
         replay_memory.append((state, action, reward, next_state, done))
