@@ -34,9 +34,9 @@ import sys
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 #import gym.envs.atari as atari
-sns.set()
+#sns.set()
 
 from util import wrap_dqn
 
