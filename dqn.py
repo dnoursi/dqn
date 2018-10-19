@@ -150,7 +150,7 @@ with tf.Session() as sess:
                 state = env.reset()
             else:
                 if np.random.random() < 0.1:
-                    state = env.reset
+                    state = env.reset()
                     if np.random.random() < 0.1:
                         init_clone_point = init_state = init_point_reward_delta = None
                 else:
