@@ -146,14 +146,19 @@ with tf.Session() as sess:
                 training_iter, loss_val, mean_max_q, returnn))
                 sys.stdout.flush()
 
-            if (not args.benchmark) or np.random.random() < 0.1:
+            if (not args.benchmark):
                 state = env.reset()
             else:
-                if init_clone_point is None:
-                    state = env.reset()
-                else:
-                    env.env.unwrapped.restore_full_state(init_clone_point)
-                    state = init_state
+	        if np.random.random() < 0.1:
+                    state = env.reset
+                    if np.random.random() < 0.1:
+                        init_clone_point = init_state = init_point_reward_delta = None
+		else:
+                    if init_clone_point is None:
+                        state = env.reset()
+                    else:
+                        env.env.unwrapped.restore_full_state(init_clone_point)
+                        state = init_state
 
         if args.render:
             env.render()
@@ -226,8 +231,6 @@ with tf.Session() as sess:
 
         # And save regularly
         if step % args.save_steps == 0:
-            if args.benchmark:
-                init_state = init_clone_point = init_point_reward_delta = None
 
             saver.save(sess, path)
             np.save(os.path.join(args.jobid, "{}.npy".format(args.jobid)), np.array((steps, returns)))
