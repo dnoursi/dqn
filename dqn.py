@@ -105,17 +105,6 @@ assert 0 < args.proportion_lag < 1
 benchmark_buffer = []
 benchmark_buffer_size = 10
 
-def benchmark_episode(ret):
-
-    global benchmark_buffer
-    assert len(current_episode_memory) == len(current_episode_full_state)
-
-    idx = int(args.proportion_lag * len(current_episode_memory))
-    heapq.heappush(benchmark_buffer, ( (-1)*ret, current_episode_memory[idx][0], current_episode_full_state[idx]))
-
-    benchmark_buffer = benchmark_buffer[:benchmark_buffer_size]
-
-
 def sample_benchmark():
     idx = np.random.randint(len(benchmark_buffer))
     bench = benchmark_buffer[idx]
@@ -189,9 +178,8 @@ with tf.Session() as sess:
         q_values = online_q_values.eval(feed_dict={X_state: [state]})
         action = epsilon_greedy(q_values, step)
 
-        if args.benchmark:
-            # checkpoint old state
-            old_cloned_state = env.env.unwrapped.clone_full_state()
+        # checkpoint old state
+        old_cloned_state = env.env.unwrapped.clone_full_state()
 
         # Online DQN plays
         next_state, reward, done, info = env.step(action)
@@ -199,8 +187,7 @@ with tf.Session() as sess:
 
         # Let's memorize what happened
         current_episode_memory.append((state, action, reward, next_state, done))
-        if args.benchmark:
-            current_episode_full_state.append(old_cloned_state)
+        current_episode_full_state.append(old_cloned_state)
 
         state = next_state
 
@@ -212,7 +199,9 @@ with tf.Session() as sess:
         game_length += 1
         if done:
             if args.benchmark:
-                benchmark_episode(returnn)
+                idx = int(args.proportion_lag * len(current_episode_memory))
+                heapq.heappush(benchmark_buffer, ( (-1)*returnn, current_episode_memory[idx][0], current_episode_full_state[idx]))
+                benchmark_buffer = benchmark_buffer[:benchmark_buffer_size]
 
             replay_memory.extend(current_episode_memory)
             current_episode_memory.clear()
