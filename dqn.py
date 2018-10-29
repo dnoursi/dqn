@@ -200,7 +200,12 @@ with tf.Session() as sess:
         if done:
             if args.benchmark:
                 idx = int(args.proportion_lag * len(current_episode_memory))
-                heapq.heappush(benchmark_buffer, ( (-1)*returnn, current_episode_memory[idx][0], current_episode_full_state[idx]))
+                t_replay = current_episode_memory[idx][0]
+                print(t_replay)
+                t_state = current_episode_full_state[idx]
+                print(t_state)
+                print(returnn)
+                heapq.heappush(benchmark_buffer, ( (-1)*returnn, t_replay, t_state) )
                 benchmark_buffer = benchmark_buffer[:benchmark_buffer_size]
 
             replay_memory.extend(current_episode_memory)
