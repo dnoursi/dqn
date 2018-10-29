@@ -123,8 +123,11 @@ def sample_memories(batch_size):
 eps_min = 0.01
 eps_max = 1.0 if not args.test else eps_min
 
+def scaled_eps(step):
+    return max(eps_min, eps_max - (eps_max-eps_min) * step / args.explore_steps)
+
 def epsilon_greedy(q_values, step):
-    epsilon = max(eps_min, eps_max - (eps_max-eps_min) * step / args.explore_steps)
+    epsilon = scaled_eps(step)
     if np.random.rand() < epsilon:
         return np.random.randint(env.action_space.n) # random action
     else:
@@ -160,7 +163,7 @@ with tf.Session() as sess:
             if (not args.benchmark):
                 state = env.reset()
             else:
-                if np.random.random() < 0.1:
+                if np.random.random() < scaled_eps(step/2):
                     state = env.reset()
                 else:
                     if args.bb_size != len(benchmark_buffer):
