@@ -13,9 +13,8 @@ parser.add_argument("-n", "--number-steps", type=int, default=1000000, help="tot
 parser.add_argument("-e", "--explore-steps", type=int, default=100000, help="total number of explorartion steps")
 parser.add_argument("-c", "--copy-steps", type=int, default=4096, help="number of training steps between copies of online DQN to target DQN")
 parser.add_argument("-l", "--learn-freq", type=int, default=4, help="number of game steps between each training step")
-
-parser.add_argument("-b", "--benchmark", type=bool, default=True, help="use heuristic benchmarking")
-parser.add_argument("-p", "--proportion-lag", type=float, default=.25)
+parser.add_argument("-b", "--benchmark", type=int, default=1, help="use heuristic benchmarking")
+# for 1; record max reward delta. for 2; record max total reward accumulated.
 
 # Irrelevant hparams
 parser.add_argument("-s", "--save-steps", type=int, default=10000, help="number of training steps between saving checkpoints")
@@ -95,35 +94,6 @@ saver = tf.train.Saver()
 
 # Let's implement a simple replay memory
 replay_memory = deque([], maxlen=10000)
-current_episode_memory = deque([], maxlen=10000)
-current_episode_full_state = deque([], maxlen=10000)
-
-assert 0 < args.proportion_lag < 1
-
-benchmark_buffer = []
-benchmark_buffer_size = 10
-benchmark_min_returnn = np.NINF
-
-def benchmark_episode(returnn):
-
-    if returnn < benchmark_min_returnn:
-        return
-
-    assert len(current_episode_memory) == len(current_episode_full_state)
-
-    idx = int(args.proportion_lag * len(current_episode_memory))
-    heapq.heappush(benchmark_buffer, ( (-1)*returnn, current_episode_memory[idx][0], current_episode_full_state[idx]))
-
-    benchmark_buffer = benchmark_buffer[:benchmark_buffer_size]
-
-    if len(benchmark_buffer) == benchmark_buffer_size:
-        benchmark_min_returnn = (-1) * np.max(np.array(benchmark_buffer), axis=0)[0]
-
-
-def sample_benchmark():
-    idx = np.random.randint(len(benchmark_buffer))
-    bench = benchmark_buffer[idx]
-    return bench[1], bench[2]
 
 def sample_memories(batch_size):
     indices = np.random.permutation(len(replay_memory))[:batch_size]
@@ -147,6 +117,9 @@ def epsilon_greedy(q_values, step):
         return np.argmax(q_values) # optimal action
 
 done = True # env needs to be reset
+
+if args.benchmark:
+    init_state = init_clone_point = init_point_reward_delta = None
 
 # We will keep track of the max Q-Value over time and compute the mean per game
 loss_val = np.infty
@@ -178,13 +151,14 @@ with tf.Session() as sess:
             else:
                 if np.random.random() < 0.1:
                     state = env.reset()
+                    if np.random.random() < 0.1:
+                        init_clone_point = init_state = init_point_reward_delta = None
                 else:
-                    if not len(benchmark_buffer):
+                    if init_clone_point is None:
                         state = env.reset()
                     else:
-                        restore_state, restore_cloned = sample_benchmark()
-                        state = restore_state
-                        env.env.unwrapped.restore_full_state(restore_cloned)
+                        env.env.unwrapped.restore_full_state(init_clone_point)
+                        state = init_state
 
         if args.render:
             env.render()
@@ -196,16 +170,32 @@ with tf.Session() as sess:
         if args.benchmark:
             # checkpoint old state
             old_cloned_state = env.env.unwrapped.clone_full_state()
+            old_state = state
 
         # Online DQN plays
         next_state, reward, done, info = env.step(action)
         returnn += reward
 
-        # Let's memorize what happened
-        current_episode_memory.append((state, action, reward, next_state, done))
         if args.benchmark:
-            current_episode_full_state.append(old_cloned_state)
+            # delta set to none after each env reset.
+            if init_point_reward_delta is None:
+                init_point_reward_delta = reward
+            else:
+                if args.benchmark == 1:
+                    # if the last step drew a great reward, then benchmark here.
+                    if reward > init_point_reward_delta:
+                        init_clone_point = old_cloned_state
+                        init_state = old_state
+                        init_point_reward_delta = reward
+                if args.benchmark == 2:
+                    # if the last step drew a great total returnn, then benchmark here.
+                    if returnn > init_point_reward_delta:
+                        init_clone_point = old_cloned_state
+                        init_state = old_state
+                        init_point_reward_delta = returnn
 
+        # Let's memorize what happened
+        replay_memory.append((state, action, reward, next_state, done))
         state = next_state
 
         if args.test:
@@ -215,13 +205,6 @@ with tf.Session() as sess:
         total_max_q += q_values.max()
         game_length += 1
         if done:
-            if args.benchmark:
-                benchmark_episode(returnn)
-
-            replay_memory.extend(current_episode_memory)
-            current_episode_memory.clear()
-            current_episode_full_state.clear()
-
             steps.append(step)
             returns.append(returnn)
             returnn = 0.
