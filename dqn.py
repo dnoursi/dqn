@@ -39,8 +39,6 @@ import matplotlib.pyplot as plt
 #import gym.envs.atari as atari
 #sns.set()
 
-import heapq
-
 from util import wrap_dqn
 
 env = wrap_dqn(gym.make("{}NoFrameskip-v4".format(args.game)))
@@ -201,12 +199,20 @@ with tf.Session() as sess:
             if args.benchmark:
                 idx = int(args.proportion_lag * len(current_episode_memory))
                 t_replay = current_episode_memory[idx][0]
-                print(t_replay)
+                #print(np.array(t_replay).shape)
                 t_state = current_episode_full_state[idx]
-                print(t_state)
-                print(returnn)
-                heapq.heappush(benchmark_buffer, ( (-1)*returnn, t_replay, t_state) )
-                benchmark_buffer = benchmark_buffer[:benchmark_buffer_size]
+                #print(np.array(t_state).shape)
+                #print(returnn)
+                benchmark_buffer.append( (returnn, t_replay, t_state) )
+                while len(benchmark_buffer) > benchmark_buffer_size:
+                    min_return = benchmark_buffer[0][0]
+                    mr_index = 0
+                    for i in range(len(benchmark_buffer)):
+                        tupl = benchmark_buffer[i]
+                        if tupl[0] < min_return:
+                            min_return = tupl[0]
+                            mr_index = i
+                    benchmark_buffer.pop(i)
 
             replay_memory.extend(current_episode_memory)
             current_episode_memory.clear()
