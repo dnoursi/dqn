@@ -39,6 +39,8 @@ import matplotlib.pyplot as plt
 #import gym.envs.atari as atari
 #sns.set()
 
+import heapq
+
 from util import wrap_dqn
 
 env = wrap_dqn(gym.make("{}NoFrameskip-v4".format(args.game)))
@@ -102,22 +104,16 @@ assert 0 < args.proportion_lag < 1
 
 benchmark_buffer = []
 benchmark_buffer_size = 10
-benchmark_min_returnn = np.NINF
 
-def benchmark_episode(returnn):
+def benchmark_episode(ret):
 
-    if returnn < benchmark_min_returnn:
-        return
-
+    global benchmark_buffer
     assert len(current_episode_memory) == len(current_episode_full_state)
 
     idx = int(args.proportion_lag * len(current_episode_memory))
-    heapq.heappush(benchmark_buffer, ( (-1)*returnn, current_episode_memory[idx][0], current_episode_full_state[idx]))
+    heapq.heappush(benchmark_buffer, ( (-1)*ret, current_episode_memory[idx][0], current_episode_full_state[idx]))
 
     benchmark_buffer = benchmark_buffer[:benchmark_buffer_size]
-
-    if len(benchmark_buffer) == benchmark_buffer_size:
-        benchmark_min_returnn = (-1) * np.max(np.array(benchmark_buffer), axis=0)[0]
 
 
 def sample_benchmark():
