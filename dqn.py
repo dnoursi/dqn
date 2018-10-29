@@ -16,6 +16,7 @@ parser.add_argument("-l", "--learn-freq", type=int, default=4, help="number of g
 
 parser.add_argument("-b", "--benchmark", type=bool, default=True, help="use heuristic benchmarking")
 parser.add_argument("-p", "--proportion-lag", type=float, default=.25)
+parser.add_argument("--bb-size", type=int, default=10)
 
 # Irrelevant hparams
 parser.add_argument("-s", "--save-steps", type=int, default=10000, help="number of training steps between saving checkpoints")
@@ -25,6 +26,7 @@ parser.add_argument("-v", "--verbosity", action="count", default=1, help="increa
 parser.add_argument("-j", "--jobid", default="123123", help="SLURM job ID")
 
 args = parser.parse_args()
+print("Args:", args)
 
 from collections import deque
 import gym
@@ -101,7 +103,6 @@ current_episode_full_state = deque([], maxlen=10000)
 assert 0 < args.proportion_lag < 1
 
 benchmark_buffer = []
-benchmark_buffer_size = 10
 
 def sample_benchmark():
     idx = np.random.randint(len(benchmark_buffer))
@@ -162,7 +163,7 @@ with tf.Session() as sess:
                 if np.random.random() < 0.1:
                     state = env.reset()
                 else:
-                    if not len(benchmark_buffer):
+                    if args.bb_size != len(benchmark_buffer):
                         state = env.reset()
                     else:
                         restore_state, restore_cloned = sample_benchmark()
@@ -204,7 +205,7 @@ with tf.Session() as sess:
                 #print(np.array(t_state).shape)
                 #print(returnn)
                 benchmark_buffer.append( (returnn, t_replay, t_state) )
-                while len(benchmark_buffer) > benchmark_buffer_size:
+                while len(benchmark_buffer) > args.bb_size:
                     min_return = benchmark_buffer[0][0]
                     mr_index = 0
                     for i in range(len(benchmark_buffer)):
