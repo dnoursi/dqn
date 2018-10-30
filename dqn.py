@@ -104,11 +104,6 @@ assert 0 < args.proportion_lag < 1
 
 benchmark_buffer = []
 
-def sample_benchmark():
-    idx = np.random.randint(len(benchmark_buffer))
-    bench = benchmark_buffer[idx]
-    return bench[1], bench[2]
-
 def sample_memories(batch_size):
     indices = np.random.permutation(len(replay_memory))[:batch_size]
     cols = [[], [], [], [], []] # state, action, reward, next_state, continue
@@ -125,6 +120,9 @@ eps_max = 1.0 if not args.test else eps_min
 
 def scaled_eps(step):
     return max(eps_min, eps_max - (eps_max-eps_min) * step / args.explore_steps)
+
+def reverse_scaled_eps(step):
+    return min(eps_max, eps_min + (eps_max-eps_min) * step / args.explore_steps)
 
 def epsilon_greedy(q_values, step):
     epsilon = scaled_eps(step)
@@ -169,7 +167,8 @@ with tf.Session() as sess:
                     if args.bb_size != len(benchmark_buffer):
                         state = env.reset()
                     else:
-                        restore_state, restore_cloned = sample_benchmark()
+                        idx = np.random.randint(len(benchmark_buffer))
+                        restore_state, restore_cloned = benchmark_buffer[idx][1], benchmark_buffer[idx][2]
                         state = restore_state
                         env.env.unwrapped.restore_full_state(restore_cloned)
 
@@ -201,7 +200,7 @@ with tf.Session() as sess:
         game_length += 1
         if done:
             if args.benchmark:
-                idx = int(args.proportion_lag * len(current_episode_memory))
+                idx = int(args.proportion_lag * reverse_scaled_eps(step/2) * len(current_episode_memory))
                 t_replay = current_episode_memory[idx][0]
                 #print(np.array(t_replay).shape)
                 t_state = current_episode_full_state[idx]
