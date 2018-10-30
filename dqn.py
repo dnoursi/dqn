@@ -16,7 +16,8 @@ parser.add_argument("-l", "--learn-freq", type=int, default=4, help="number of g
 
 parser.add_argument("-b", "--benchmark", type=bool, default=True, help="use heuristic benchmarking")
 parser.add_argument("-p", "--proportion-lag", type=float, default=.25)
-parser.add_argument("--bb-size", type=int, default=10)
+parser.add_argument("--bb-size", type=int, default=10, "Size of benchmark/checkpoint buffer")
+parser.add_argument("--bb-freshness", type=int, default=6, "Max number of uses of a checkpoint")
 
 # Irrelevant hparams
 parser.add_argument("-s", "--save-steps", type=int, default=10000, help="number of training steps between saving checkpoints")
@@ -168,9 +169,18 @@ with tf.Session() as sess:
                         state = env.reset()
                     else:
                         idx = np.random.randint(len(benchmark_buffer))
-                        restore_state, restore_cloned = benchmark_buffer[idx][1], benchmark_buffer[idx][2]
+                        bb_here = benchmark_buffer[idx]
+                        restore_state, restore_cloned = bb_here[1], bb_here[2]
                         state = restore_state
                         env.env.unwrapped.restore_full_state(restore_cloned)
+
+                        if bb_here[3] > args.bb_freshness:
+                            assert False
+
+                        if bb_here[3] >= args.bb_freshness:
+                            benchmark_buffer.pop(idx)
+                        else:
+                            benchmark_buffer[idx][3] += 1
 
         if args.render:
             env.render()
@@ -206,7 +216,7 @@ with tf.Session() as sess:
                 t_state = current_episode_full_state[idx]
                 #print(np.array(t_state).shape)
                 #print(returnn)
-                benchmark_buffer.append( (returnn, t_replay, t_state) )
+                benchmark_buffer.append( (returnn, t_replay, t_state, 0) )
                 while len(benchmark_buffer) > args.bb_size:
                     min_return = benchmark_buffer[0][0]
                     mr_index = 0
