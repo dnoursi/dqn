@@ -168,19 +168,18 @@ with tf.Session() as sess:
                     if args.bb_size != len(benchmark_buffer):
                         state = env.reset()
                     else:
-                        idx = np.random.randint(len(benchmark_buffer))
-                        bb_here = benchmark_buffer[idx]
-                        rs, restore_state, restore_cloned, rcount = bb_here
+                        bench_restore_idx = np.random.randint(len(benchmark_buffer))
+                        rscore, restore_state, restore_cloned, rcount = benchmark_buffer[bench_restore_idx]
                         state = restore_state
                         env.env.unwrapped.restore_full_state(restore_cloned)
 
-                        if bb_here[3] > args.bb_freshness:
+                        if rcount > args.bb_freshness:
                             assert False
 
-                        if bb_here[3] >= args.bb_freshness:
-                            benchmark_buffer.pop(idx)
+                        if rcount >= args.bb_freshness:
+                            benchmark_buffer.pop(bench_restore_idx)
                         else:
-                            benchmark_buffer[idx] = (rs, restore_state, restore_cloned, rcount+1)
+                            benchmark_buffer[bench_restore_idx] = (rscore, restore_state, restore_cloned, rcount+1)
 
         if args.render:
             env.render()
@@ -211,12 +210,9 @@ with tf.Session() as sess:
         if done:
             if args.benchmark:
                 idx = int(args.proportion_lag * reverse_scaled_eps(step/2) * len(current_episode_memory))
-                t_replay = current_episode_memory[idx][0]
-                #print(np.array(t_replay).shape)
-                t_state = current_episode_full_state[idx]
-                #print(np.array(t_state).shape)
-                #print(returnn)
-                benchmark_buffer.append( (returnn, t_replay, t_state, 0) )
+                bench_replay = current_episode_memory[idx][0]
+                bench_state = current_episode_full_state[idx]
+                benchmark_buffer.append( (returnn, bench_replay, bench_state, 0) )
                 while len(benchmark_buffer) > args.bb_size:
                     min_return = benchmark_buffer[0][0]
                     mr_index = 0
