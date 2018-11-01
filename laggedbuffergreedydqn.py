@@ -105,15 +105,6 @@ assert 0 < args.proportion_lag < 1
 
 benchmark_buffer = []
 
-# Here: take average return of top 10% of transitions
-# Can be any score of current_episode_memory (or current_episode_full_state)
-def compute_score():
-    transition_scores = [tupl[2] for tupl in current_episode_memory]
-    # Max-sort
-    transition_scores.sort(reverse=True)
-    keep = int(len(transition_scores) * .10)
-    return np.mean(transition_scores[:keep])
-
 def sample_memories(batch_size):
     indices = np.random.permutation(len(replay_memory))[:batch_size]
     cols = [[], [], [], [], []] # state, action, reward, next_state, continue
@@ -228,15 +219,14 @@ with tf.Session() as sess:
                 idx = int(args.proportion_lag * reverse_scaled_eps(step/2) * len(current_episode_memory))
                 bench_replay = current_episode_memory[idx][0]
                 bench_state = current_episode_full_state[idx]
-                bench_score = compute_score()
-                benchmark_buffer.append( (bench_score, bench_replay, bench_state, 0) )
+                benchmark_buffer.append( (returnn, bench_replay, bench_state, 0) )
                 while len(benchmark_buffer) > args.bb_size:
-                    min_score = benchmark_buffer[0][0]
+                    min_return = benchmark_buffer[0][0]
                     mr_index = 0
                     for i in range(len(benchmark_buffer)):
                         tupl = benchmark_buffer[i]
-                        if tupl[0] < min_score:
-                            min_score = tupl[0]
+                        if tupl[0] < min_return:
+                            min_return = tupl[0]
                             mr_index = i
                     benchmark_buffer.pop(i)
 
