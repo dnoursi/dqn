@@ -164,7 +164,9 @@ with tf.Session() as sess:
             else:
                 if np.random.random() < scaled_eps(step/2):
                     state = env.reset()
+                    bench_used = False
                 else:
+                    bench_used = True
                     if args.bb_size != len(benchmark_buffer):
                         state = env.reset()
                     else:
@@ -209,6 +211,11 @@ with tf.Session() as sess:
         game_length += 1
         if done:
             if args.benchmark:
+
+                # Dont use this again
+                if bench_used and returnn < .1 * np.mean(returns):
+                    benchmark_buffer.pop(bench_restore_idx)
+
                 idx = int(args.proportion_lag * reverse_scaled_eps(step/2) * len(current_episode_memory))
                 bench_replay = current_episode_memory[idx][0]
                 bench_state = current_episode_full_state[idx]
