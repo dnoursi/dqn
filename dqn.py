@@ -16,8 +16,8 @@ parser.add_argument("-l", "--learn-freq", type=int, default=4, help="number of g
 
 parser.add_argument("-b", "--benchmark", type=bool, default=True, help="use heuristic benchmarking")
 parser.add_argument("-p", "--proportion-lag", type=float, default=.25)
-parser.add_argument("--bb-size", type=int, default=10, "Size of benchmark/checkpoint buffer")
-parser.add_argument("--bb-freshness", type=int, default=6, "Max number of uses of a checkpoint")
+parser.add_argument("--bb-size", type=int, default=10, help= "Size of benchmark/checkpoint buffer")
+parser.add_argument("--bb-freshness", type=int, default=6, help= "Max number of uses of a checkpoint")
 
 # Irrelevant hparams
 parser.add_argument("-s", "--save-steps", type=int, default=10000, help="number of training steps between saving checkpoints")
@@ -170,7 +170,7 @@ with tf.Session() as sess:
                     else:
                         idx = np.random.randint(len(benchmark_buffer))
                         bb_here = benchmark_buffer[idx]
-                        restore_state, restore_cloned = bb_here[1], bb_here[2]
+                        rs, restore_state, restore_cloned, rcount = bb_here
                         state = restore_state
                         env.env.unwrapped.restore_full_state(restore_cloned)
 
@@ -180,7 +180,7 @@ with tf.Session() as sess:
                         if bb_here[3] >= args.bb_freshness:
                             benchmark_buffer.pop(idx)
                         else:
-                            benchmark_buffer[idx][3] += 1
+                            benchmark_buffer[idx] = (rs, restore_state, restore_cloned, rcount+1)
 
         if args.render:
             env.render()
