@@ -168,17 +168,17 @@ with tf.Session() as sess:
                 training_iter, loss_val, mean_max_q, returnn))
                 sys.stdout.flush()
 
+            bench_used = False
             if (not args.benchmark):
                 state = env.reset()
             else:
                 if np.random.random() < scaled_eps(step/2):
                     state = env.reset()
-                    bench_used = False
                 else:
-                    bench_used = True
                     if args.bb_size != len(benchmark_buffer):
                         state = env.reset()
                     else:
+                        bench_used = True
                         bench_restore_idx = np.random.randint(len(benchmark_buffer))
                         rscore, restore_state, restore_cloned, rcount = benchmark_buffer[bench_restore_idx]
                         state = restore_state
