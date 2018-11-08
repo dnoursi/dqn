@@ -149,6 +149,7 @@ game_length = 0
 total_max_q = 0
 mean_max_q = 0.0
 returnn = 0.0
+mean_returns = 0.0
 returns = []
 steps = []
 path = os.path.join(args.jobid, "model")
@@ -222,7 +223,7 @@ with tf.Session() as sess:
             if args.benchmark:
 
                 # Dont use this again
-                if bench_used and returnn < .1 * np.mean(returns):
+                if bench_used and returnn < .1 * mean_returns:
                     benchmark_buffer.pop(bench_restore_idx)
 
                 idx = int(args.proportion_lag * reverse_scaled_eps(step/2) * len(current_episode_memory))
@@ -230,6 +231,7 @@ with tf.Session() as sess:
                 bench_state = current_episode_full_state[idx]
                 bench_score = compute_score()
                 benchmark_buffer.append( (bench_score, bench_replay, bench_state, 0) )
+                # Handmade heap :/
                 while len(benchmark_buffer) > args.bb_size:
                     min_score = benchmark_buffer[0][0]
                     mr_index = 0
@@ -246,6 +248,7 @@ with tf.Session() as sess:
 
             steps.append(step)
             returns.append(returnn)
+            mean_returns = np.mean(returns)
             returnn = 0.
             mean_max_q = total_max_q / game_length
             total_max_q = 0.0
