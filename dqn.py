@@ -102,7 +102,7 @@ current_episode_memory = deque([], maxlen=10000)
 current_episode_full_state = deque([], maxlen=10000)
 
 assert 0 < args.proportion_lag < 1
-
+min_trajectory_len = 2 * int(1./args.proportion_lag)
 benchmark_buffer = []
 
 # Here: take average return of top 10% of transitions
@@ -220,7 +220,7 @@ with tf.Session() as sess:
         total_max_q += q_values.max()
         game_length += 1
         if done:
-            if args.benchmark:
+            if args.benchmark and len(current_episode_memory) > min_trajectory_len:
 
                 # Dont use this again
                 if bench_used and returnn < .1 * mean_returns:
