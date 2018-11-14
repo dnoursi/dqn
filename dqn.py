@@ -213,6 +213,11 @@ with tf.Session() as sess:
 
         state = next_state
 
+        # save regularly
+        if step % args.save_steps == 0:
+            saver.save(sess, path)
+            np.save(os.path.join(args.jobid, "{}.npy".format(args.jobid)), np.array((steps, returns)))
+
         if args.test:
             continue
 
@@ -270,9 +275,3 @@ with tf.Session() as sess:
         # Regularly copy the online DQN to the target DQN
         if step % args.copy_steps == 0:
             copy_online_to_target.run()
-
-        # And save regularly
-        if step % args.save_steps == 0:
-
-            saver.save(sess, path)
-            np.save(os.path.join(args.jobid, "{}.npy".format(args.jobid)), np.array((steps, returns)))
