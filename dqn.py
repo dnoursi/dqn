@@ -44,6 +44,8 @@ import matplotlib.pyplot as plt
 
 from util import wrap_dqn
 
+save_file = file(os.path.join(args.jobid, "{}.npy".format(args.jobid)), 'a')
+
 env = wrap_dqn(gym.make("{}NoFrameskip-v4".format(args.game)))
 #env = atari.AtariEnv(env)
 #env = wrap_dqn(atari.AtariEnv("pong", frameskip=1))
@@ -216,10 +218,7 @@ with tf.Session() as sess:
         # save regularly
         if step % args.save_steps == 0:
             saver.save(sess, path)
-            np.save(os.path.join(args.jobid, "{}.npy".format(args.jobid)), np.array((steps, returns)))
-
-        if args.test:
-            continue
+            np.save(save_file, np.array((steps, returns)))
 
         # Compute statistics for tracking progress (not shown in the book)
         total_max_q += q_values.max()
@@ -259,8 +258,13 @@ with tf.Session() as sess:
             total_max_q = 0.0
             game_length = 0
 
+
+        if args.test:
+            continue
+
+        # only train after warmup period and at regular intervals
         if step < training_start or step % args.learn_freq != 0:
-            continue # only train after warmup period and at regular intervals
+            continue
 
         # Sample memories and train the online DQN
         X_state_val, X_action_val, X_rewards_val, X_next_state_val, X_done_val = sample_memories(batch_size)
