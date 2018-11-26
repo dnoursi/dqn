@@ -44,8 +44,6 @@ import matplotlib.pyplot as plt
 
 from util import wrap_dqn
 
-save_file = file(os.path.join(args.jobid, "{}.npy".format(args.jobid)), 'a')
-
 env = wrap_dqn(gym.make("{}NoFrameskip-v4".format(args.game)))
 #env = atari.AtariEnv(env)
 #env = wrap_dqn(atari.AtariEnv("pong", frameskip=1))
@@ -215,11 +213,6 @@ with tf.Session() as sess:
 
         state = next_state
 
-        # save regularly
-        if step % args.save_steps == 0:
-            saver.save(sess, path)
-            np.save(save_file, np.array((steps, returns)))
-
         # Compute statistics for tracking progress (not shown in the book)
         total_max_q += q_values.max()
         game_length += 1
@@ -258,6 +251,12 @@ with tf.Session() as sess:
             total_max_q = 0.0
             game_length = 0
 
+
+        # save regularly
+        if step % args.save_steps == 0:
+            saver.save(sess, path)
+            filename_str = "{}-test.npy" if args.test else "{}.npy"
+            np.save(file= os.path.join(args.jobid, filename_str.format(args.jobid)) , arr=np.array((steps, returns)))
 
         if args.test:
             continue
